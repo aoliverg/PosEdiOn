@@ -1,0 +1,14 @@
+Filepath:
+  path_in: /home/aoliverg/recerca/PosEdiOn-v12/eavilesmo
+  path_out: /home/aoliverg/recerca/PosEdiOn-v12/eavilesmo
+
+Files:
+   results: results.txt
+
+Measures:
+   round_time: 2
+   round_keys: 2
+   round_hTER: 4
+   round_hBLEU: 4
+   round_hEd: 2
+   round_other: 1
