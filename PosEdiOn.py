@@ -298,7 +298,7 @@ def control_C(event):
     clipboard=root.clipboard_get()
     keyp="Command.CtrlC."+clipboard
     
-    cadena="C"+"\t"+str(cont)+"\ŧ"+str(project[cont]['id'])+"\t"+str(datetime.datetime.now())+"\t"+keyp
+    cadena="C"+"\t"+str(cont)+"\t"+str(project[cont]['id'])+"\t"+str(datetime.datetime.now())+"\t"+keyp
     actions.write(cadena+"\n")
     
 def control_X(event):
