@@ -82,3 +82,12 @@ Measures:
 ```
 
 This configuration allows us to specify the initial input and output paths, the initial name of the result file and the number of decimals to round the results.
+
+## XLIFF2PosEdiOn.py
+
+This program allows creating PosEdiOn project files from XLIFF files. Tu use the file project.xliff to create the project.txt PosEdiOn tab delimited project you can do:
+
+```
+python3 XLIFF2PosEdiOn.py project.xliff project.txt
+```
+
