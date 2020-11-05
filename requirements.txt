@@ -1,0 +1,7 @@
+pyperclip==1.8.1
+nltk==3.5
+matplotlib==3.3.2
+chronometer==1.0
+pynput==1.7.1
+numpy==1.19.4
+PyYAML==5.3.1
