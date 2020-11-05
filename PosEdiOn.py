@@ -26,6 +26,8 @@ from pynput.keyboard import Key, Listener
 import datetime
 import atexit
 import pyperclip
+import os.path
+import sys
 
 def savestart():
     global cont
@@ -542,7 +544,12 @@ filename=config['Text']['file']
 
 actionsfile=config['Actions']['file']
 
-entrada=codecs.open(filename,"r",encoding="utf-8")
+
+if os.path.isfile(filename):
+    entrada=codecs.open(filename,"r",encoding="utf-8")
+else:
+    print("Project file does not exist. Check the information in the config.yaml file. Exiting")
+    sys.exit()
 
 actions=codecs.open(actionsfile,"a",encoding="utf-8",buffering=0)
 actions.close()
