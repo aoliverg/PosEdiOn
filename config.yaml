@@ -1,3 +1,13 @@
+Text:
+    file: original-TA.txt
+    
+Actions:
+    file: actions.txt
+
+Languages:
+    source: eng
+    target: spa
+
 Size:
     height: 10
     width: 80
@@ -11,17 +21,7 @@ Font:
 Chronometer:
     status: show
     #possible values: show / hide
-
-Text:
-    file: original-TA.txt
-    
-Actions:
-    file: actions.txt
-    
-Languages:
-    source: eng
-    target: spa
-    
+        
 Definition:
     symbols: "! @ # $ % ^ & ( ) _ { } [ ] ' ? ¿ ! ¡ < >"
     punctuation: ", : ; ."
