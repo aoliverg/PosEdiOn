@@ -1,5 +1,5 @@
 #    PosEdiOn
-#    Copyright (C) 2020  Antoni Oliver
+#    Copyright (C) 2021  Antoni Oliver
 #
 #    This program is free software: you can redistribute it and/or modify
 #    it under the terms of the GNU General Public License as published by
@@ -17,6 +17,7 @@
 import tkinter as tk
 from tkinter import *
 from tkinter import scrolledtext
+from tkinter import messagebox 
 import yaml
 from chronometer import Chronometer
 import codecs
@@ -467,6 +468,10 @@ def unclear_target(_event=None):
 
 pauseF=False
 tempsTotal=0
+
+if not os.path.isfile("config.yaml"):
+    messagebox.showerror("ERROR:", "No config.yaml file.")
+    sys.exit()
 
 stream = open('config.yaml', 'r')
 config=yaml.load(stream,Loader=yaml.FullLoader)

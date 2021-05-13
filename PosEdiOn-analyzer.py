@@ -1,5 +1,5 @@
 #    PosEdiOn-analyzer v 1.1
-#    Copyright (C) 2020  Antoni Oliver
+#    Copyright (C) 2021  Antoni Oliver
 #
 #    This program is free software: you can redistribute it and/or modify
 #    it under the terms of the GNU General Public License as published by
@@ -395,6 +395,11 @@ def go():
     results_frame_text.insert(INSERT, cadena)
     results_frame_text.insert(INSERT, "\n")
 if __name__ == "__main__":
+    
+    if not os.path.isfile("config-analyzer.yaml"):
+        messagebox.showerror("ERROR:", "No config-analyzer.yaml file.")
+        sys.exit()
+    
     stream = open('config-analyzer.yaml', 'r',encoding="utf-8")
     config=yaml.load(stream,Loader=Loader)
 
