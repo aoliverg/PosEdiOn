@@ -1,7 +1,7 @@
 PosEdiOn
 ========
 
-##DOCUMENTATION
+## DOCUMENTATION
 
 All the documentation of the project can be found in the [wiki](https://github.com/aoliverg/PosEdiOn/wiki) of the project
 
