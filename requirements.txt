@@ -1,0 +1,8 @@
+nltk
+XlsxWriter
+numpy
+chronometer
+jieba
+pynput
+pyperclip
+PyYAML
