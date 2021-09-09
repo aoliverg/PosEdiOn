@@ -1,0 +1,30 @@
+Project:
+    file: projectecurt2.sqlite
+    
+Languages:
+    source: eng
+    target: spa
+
+Size:
+    height: 10
+    width: 80
+    
+Behaviour:
+    allowEditSL: True
+
+Font:
+    font: courier 12
+
+Chronometer:
+    status: show
+    #possible values: show / hide
+        
+Definition:
+    symbols: "! @ # $ % ^ & ( ) _ { } [ ] ' ? ¿ ! ¡ < >"
+    punctuation: ", : ; ."
+    nameuserdef1: mathematical
+    userdef1: "+ - * / =" 
+    nameuserdef2: None
+    userdef2: None
+    nameuserdef3: None
+    userdef3: None
