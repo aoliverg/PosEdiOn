@@ -1,0 +1,56 @@
+Filepath:
+  path_in: .
+  path_out: .
+  
+Tokenizers:
+  list: ["MTUOC_tokenizer_arg", "MTUOC_tokenizer_ast", "MTUOC_tokenizer_cat", "MTUOC_tokenizer_deu", "MTUOC_tokenizer_eng", "MTUOC_tokenizer_fra", "MTUOC_tokenizer_gal", "MTUOC_tokenizer_gen", "MTUOC_tokenizer_ita", "MTUOC_tokenizer_por", "MTUOC_tokenizer_rus", "MTUOC_tokenizer_spa", "MTUOC_tokenizer_srd", "MTUOC_tokenizer_zho_jieba", "MTUOC_tokenizer_zho_pseudo", ]
+  default: MTUOC_tokenizer_gen
+
+Files:
+   results: results
+
+Measures:
+   bysegment: True
+   normalization: token
+   #one of segment, token, char
+   HTER: True
+   HBLEU: True
+   HEd: True
+   round_time: 2
+   round_keys: 2
+   round_mouse: 2
+   round_BLEU: 4
+   round_NIST: 4
+   round_TER: 4
+   round_WER: 4
+   round_Ed: 2
+   round_KSR: 4
+   round_MAR: 4
+   round_KSRM: 4
+   round_other: 2
+    
+Detailed_results:
+    KSR: True
+    MAR: True
+    KSRM: True
+    BLEU: True
+    Ed: True
+    NIST: True
+    TER: True
+    WER: True
+    INSERTIONS: True
+    DELETIONS: True
+    SUBSTITUTIONS: True
+    REORDERING: True
+    sort_measure: Apparition
+    #one of Apparition, BLEU, NIST, WER, TER, EditDistance
+    sort_order: ascending
+    #one ascending, descending
+    
+Calculate_pruned: True
+Create_excel: True
+Create_tabbedtext: True
+
+
+    
+    
