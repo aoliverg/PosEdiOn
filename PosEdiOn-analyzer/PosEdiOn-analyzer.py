@@ -306,7 +306,6 @@ def go():
         edit_mode=result[7]
         chars=len(data[ident]["rawMT"])
         tokens=len(data[ident]["rawMT_tok"])
-        
         if cont==1 or tipus=="IN" or tipus=="START" or tipus=="RESTART":
             timestart=datetime.datetime.strptime(date_string,'%Y-%m-%d %H:%M:%S.%f')
             lenprev=len_posted
@@ -314,7 +313,6 @@ def go():
             controlV=False
             prevident=ident
         elif tipus=="OUT" or tipus=="PAUSE" or tipus=="EXIT":
-            len_prev=0
             controlX=False
             controlV=False
             timesend=datetime.datetime.strptime(date_string,'%Y-%m-%d %H:%M:%S.%f')
@@ -334,10 +332,13 @@ def go():
                     data[ident]["INSERTIONS"]+=1
             elif edit_mode=="Overwrite":
                 if key_pressed.startswith("Key.letter") or key_pressed.startswith("Key.number") or key_pressed.startswith("Key.space") or key_pressed.startswith("Key.punctuation") or key_pressed.startswith("Key.mathematical") or key_pressed.startswith("Key.symbol"):
-                    if len_posted>len_prev:
-                        data[ident]["INSERTIONS"]+=1
-                    elif len_posted==len_prev:
-                        data[ident]["SUBSTITUTIONS"]+=1
+                    try:
+                        if len_posted>len_prev:
+                            data[ident]["INSERTIONS"]+=1
+                        elif len_posted==len_prev:
+                            data[ident]["SUBSTITUTIONS"]+=1
+                    except:
+                        pass
             if key_pressed in ["Key.46.Delete","Key.8.Backspace"]:
                 data[ident]["DELETIONS"]+=1
         elif tipus=="M": 
