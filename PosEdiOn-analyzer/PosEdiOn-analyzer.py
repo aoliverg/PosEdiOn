@@ -155,6 +155,52 @@ def ter_corpus(referencesTOK,hypothesisTOK):
     shyp=codecs.open("hyp.txt","w",encoding="utf-8")
     srefs=codecs.open("refs.txt","w",encoding="utf-8")
     for posicio in range(0,len(hypothesisTOK)):
+        #mt=hypothesisTOK[posicio]
+        mt=" ".join(hypothesisTOK[posicio])
+        cadena=mt+" "+"(SEG-"+str(posicio)+")"
+        shyp.write(cadena+"\n")
+        for reference in referencesTOK[posicio]:
+            #pe=reference
+            pe=" ".join(reference)
+            cadena=pe+" "+"(SEG-"+str(posicio)+")"
+            srefs.write(cadena+"\n")
+    shyp.close()
+    srefs.close()
+    p = subprocess.Popen("java -jar tercom-0.10.0.jar -r refs.txt -h hyp.txt -o txt -N -o sum -n hter", stdout=subprocess.PIPE, shell=True)
+    (output, err) = p.communicate()
+    p_status = p.wait()
+    ter=None
+    results={}
+    entradater=codecs.open("hter.sum","r",encoding="utf-8")
+    for linia in entradater:
+        linia=linia.strip()
+        camps=linia.split("|")
+        camps = [s.strip() for s in camps]
+        
+        if camps[0].startswith("SEG") or camps[0].startswith("TOTAL"):
+            result={}
+            if camps[0].startswith("SEG"):
+                numseg=int(camps[0].split(":")[0].replace("SEG-",""))+1
+            elif camps[0].startswith("TOTAL"):
+                numseg="TOTAL"
+            result["Ins"]=float(camps[1].replace(",","."))
+            result["Del"]=float(camps[2].replace(",","."))
+            result["Sub"]=float(camps[3].replace(",","."))
+            result["Shft"]=float(camps[4].replace(",","."))
+            result["WdSh"]=float(camps[5].replace(",","."))
+            result["NumErr"]=float(camps[6].replace(",","."))
+            result["NumWd"]=float(camps[7].replace(",","."))
+            result["TER"]=float(camps[8].replace(",","."))/100
+            results[numseg]=result
+        if camps[0].startswith("TOTAL"):
+            ter=float(camps[8].replace(",","."))/100           
+    return(results)
+
+def ter_corpus_old(referencesTOK,hypothesisTOK):
+    terlist=[]
+    shyp=codecs.open("hyp.txt","w",encoding="utf-8")
+    srefs=codecs.open("refs.txt","w",encoding="utf-8")
+    for posicio in range(0,len(hypothesisTOK)):
         mt=" ".join(hypothesisTOK[posicio])
         cadena=mt+" "+"(SEG-"+str(posicio)+")"
         shyp.write(cadena+"\n")
@@ -237,7 +283,6 @@ def go():
     global timepruneupperlimit
     global meantime
     global stdevtime
-    
     selectedtokenizer=combo_tokenizers.get()
     if not selectedtokenizer.endswith(".py"): selectedtokenizer=selectedtokenizer+".py"
     spec = importlib.util.spec_from_file_location('', selectedtokenizer)
@@ -286,6 +331,10 @@ def go():
         if not "SUBSTITUTIONS" in data[ident]: data[ident]["SUBSTITUTIONS"]=0
         if not "DELETIONS" in data[ident]: data[ident]["DELETIONS"]=0
         if not "REORDERING" in data[ident]: data[ident]["REORDERING"]=0
+        #if not "" in data[ident]: data[ident][""]=0
+        #if not "INITIAL_PAUSE" in data[ident]: data[ident]["INITIAL_PAUSE"]=0
+        #if not "FINAL_PAUSE" in data[ident]: data[ident]["FINAL_PAUSE"]=0
+        if not "LONG_PAUSES" in data[ident]: data[ident]["LONG_PAUSES"]=sum_additional_pause
     
     cur.execute('SELECT * FROM actions')
     results=cur.fetchall()
@@ -294,6 +343,8 @@ def go():
     controlX=False
     controlV=False
     prevident=""
+    date_string=results[0][3]
+    prev_time=datetime.datetime.strptime(date_string,'%Y-%m-%d %H:%M:%S.%f')
     for result in results:
         cont+=1
         action_id=result[0]
@@ -306,6 +357,10 @@ def go():
         edit_mode=result[7]
         chars=len(data[ident]["rawMT"])
         tokens=len(data[ident]["rawMT_tok"])
+        normfactor=1
+        if normalization=="char": normfactor=chars
+        elif normalization=="token":  normfactor=tokens
+        
         if cont==1 or tipus=="IN" or tipus=="START" or tipus=="RESTART":
             timestart=datetime.datetime.strptime(date_string,'%Y-%m-%d %H:%M:%S.%f')
             lenprev=len_posted
@@ -319,14 +374,20 @@ def go():
             seconds=(timesend-timestart).total_seconds()
             if ident==prevident:
                 data[ident]["TIME"]+=seconds
-                if normalization=="char": data[ident]["TIME_NORM"]+=seconds/chars
-                elif normalization=="token":  data[ident]["TIME_NORM"]+=seconds/tokens
-                elif normalization=="segment":  data[ident]["TIME_NORM"]+=seconds
+                data[ident]["TIME_NORM"]+=seconds/normfactor
+                #if normalization=="char": data[ident]["TIME_NORM"]+=seconds/chars
+                #elif normalization=="token":  data[ident]["TIME_NORM"]+=seconds/tokens
+                #elif normalization=="segment":  data[ident]["TIME_NORM"]+=seconds
         elif tipus=="K": 
-            data[ident]["KEYSTROKES"]+=1
-            if normalization=="char": data[ident]["KEYSTROKES_NORM"]+=1/chars
-            elif normalization=="token":  data[ident]["KEYSTROKES_NORM"]+=1/tokens
-            elif normalization=="segment":  data[ident]["KEYSTROKES_NORM"]+=1
+            now_time=datetime.datetime.strptime(date_string,'%Y-%m-%d %H:%M:%S.%f')
+            pause=(now_time-prev_time).total_seconds()
+            prev_time=now_time
+            if pause>=min_pause_msec:
+                data[ident]["KEYSTROKES"]+=1
+                data[ident]["KEYSTROKES_NORM"]+=1/normfactor
+            #if normalization=="char": data[ident]["KEYSTROKES_NORM"]+=1/chars
+            #elif normalization=="token":  data[ident]["KEYSTROKES_NORM"]+=1/tokens
+            #elif normalization=="segment":  data[ident]["KEYSTROKES_NORM"]+=1
             if edit_mode=="Insert":
                 if key_pressed.startswith("Key.letter") or key_pressed.startswith("Key.number") or key_pressed.startswith("Key.space") or key_pressed.startswith("Key.punctuation") or key_pressed.startswith("Key.mathematical") or key_pressed.startswith("Key.symbol"):
                     data[ident]["INSERTIONS"]+=1
@@ -342,11 +403,22 @@ def go():
             if key_pressed in ["Key.46.Delete","Key.8.Backspace"]:
                 data[ident]["DELETIONS"]+=1
         elif tipus=="M": 
-            data[ident]["MOUSEACTIONS"]+=1
-            if normalization=="char": data[ident]["MOUSEACTIONS_NORM"]+=1/chars
-            elif normalization=="token":  data[ident]["MOUSEACTIONS_NORM"]+=1/tokens
-            elif normalization=="segment":  data[ident]["MOUSEACTIONS_NORM"]+=1
+            now_time=datetime.datetime.strptime(date_string,'%Y-%m-%d %H:%M:%S.%f')
+            pause=(now_time-prev_time).total_seconds()
+            prev_time=now_time
+            if pause>=min_pause_msec:
+                data[ident]["MOUSEACTIONS"]+=1
+                data[ident]["MOUSEACTIONS_NORM"]+=1/normfactor
+            #if normalization=="char": data[ident]["MOUSEACTIONS_NORM"]+=1/chars
+            #elif normalization=="token":  data[ident]["MOUSEACTIONS_NORM"]+=1/tokens
+            #elif normalization=="segment":  data[ident]["MOUSEACTIONS_NORM"]+=1
         elif tipus=="C":
+            now_time=datetime.datetime.strptime(date_string,'%Y-%m-%d %H:%M:%S.%f')
+            pause=(now_time-prev_time).total_seconds()
+            prev_time=now_time
+            if pause>=min_pause_msec:
+                data[ident]["MOUSEACTIONS"]+=1
+                data[ident]["MOUSEACTIONS_NORM"]+=1/normfactor
             if key_pressed.startswith("Command.CtrlX"):
                 controlX=True
             if key_pressed.startswith("Command.CtrlV") and controlX:
@@ -360,7 +432,7 @@ def go():
     meantime=statistics.mean(timelist)
     stdevtime=statistics.stdev(timelist)    
     timepruneupperlimit=meantime+2*stdevtime
-    timeprunelowerlimit=meantime-2*stdevtime    
+    timeprunelowerlimit=meantime-2*stdevtime  
     calculate_all(data)
 
 def safediv(x,y):
@@ -425,6 +497,7 @@ def calculate_all(data):
         hypothesis_tok.append(rawMT_tok)
         references.append([postED])
         references_tok.append([postED_tok])
+        
         if data[i]["TIME_NORM"]>=timeprunelowerlimit and data[i]["TIME_NORM"]<=timepruneupperlimit:
             data[i]["PRUNED"]=False
             hypothesis_pruned.append(rawMT)
@@ -441,7 +514,7 @@ def calculate_all(data):
             reorderingtotal_pruned+=data[i]["REORDERING"]
         else:
             data[i]["PRUNED"]=True
-            
+    
         
         timetotal+=data[i]["TIME"]
         keystrokestotal+=data[i]["KEYSTROKES"]
@@ -467,13 +540,7 @@ def calculate_all(data):
                 data[i]["NIST"]=NIST_sentence
             except:
                 data[i]["NIST"]=None
-                
-        if Detailed_results_TER:
-            try:
-                TER_sentence=round(ter_corpus([postED_tok],[rawMT_tok]),round_TER)
-                data[i]["TER"]=TER_sentence
-            except:
-                data[i]["TER"]=None
+
         
         if Detailed_results_WER:
             try:
@@ -511,7 +578,29 @@ def calculate_all(data):
             except:
                 print("ERROR KSRM ",sys.exc_info())
                 data[i]["KSRM"]=None
-            
+    
+    if SHOW_HTER or SHOW_HTER_details:
+        TERDICT=ter_corpus(references_tok,hypothesis_tok)
+        for i in ident:
+            i2=int(i)
+            data[i]["Ins"]=round(TERDICT[i2]["Ins"],round_TER)
+            data[i]["Del"]=round(TERDICT[i2]["Del"],round_TER)
+            data[i]["Sub"]=round(TERDICT[i2]["Sub"],round_TER)
+            data[i]["Shft"]=round(TERDICT[i2]["Shft"],round_TER)
+            data[i]["WdSh"]=round(TERDICT[i2]["WdSh"],round_TER)
+            data[i]["NumErr"]=round(TERDICT[i2]["NumErr"],round_TER)
+            data[i]["NumWd"]=round(TERDICT[i2]["NumWd"],round_TER)
+            data[i]["TER"]=round(TERDICT[i2]["TER"],round_TER)
+        
+        TER=round(TERDICT["TOTAL"]["TER"],round_TER)
+        INS=round(TERDICT["TOTAL"]["Ins"],round_TER)
+        DEL=round(TERDICT["TOTAL"]["Del"],round_TER)
+        SUB=round(TERDICT["TOTAL"]["Sub"],round_TER)
+        SHFT=round(TERDICT["TOTAL"]["Shft"],round_TER)
+        WDSH=round(TERDICT["TOTAL"]["WdSh"],round_TER)
+        NUMERR=round(TERDICT["TOTAL"]["NumErr"],round_TER)
+        NUMWD=round(TERDICT["TOTAL"]["NumWd"],round_TER)
+    
     #GLOBAL RESULTS
     results_frame_text.delete('1.0', END)
     totalsegments=len(hypothesis_tok)
@@ -527,151 +616,162 @@ def calculate_all(data):
         percentequaltokes=None
     
        
-    if normalization=="char": ntimetotal=timetotal/chartotal
-    elif normalization=="token": ntimetotal=timetotal/toktotal
-    elif normalization=="segment": ntimetotal=timetotal/totalsegments
-    if normalization=="char": normalizationstring="per char"
-    elif normalization=="token": normalizationstring="per token"
-    elif normalization=="segment": normalizationstring="per segment"
-    
+    normfactor=1
+    if normalization=="char": 
+        normalizationstring="per char"
+        normfactor=chartotal
+    elif normalization=="token": 
+        normalizationstring="per token"
+        normfactor=toktotal
+    elif normalization=="segment": 
+        normalizationstring="per segment"
+        normfactor=totalsegments
+    ntimetotal=timetotal/normfactor
     td=str(datetime.timedelta(seconds=timetotal))
     tdl=td.split(":")
     timetotal=":".join(tdl[:-1])+":"+str(int(round(float(tdl[-1]),0)))
     ntimetotal=round(ntimetotal,round_time)
     
     
-    if normalization=="char": nkeystrokestotal=safediv(keystrokestotal,chartotal)
-    elif normalization=="token": nkeystrokestotal=safediv(keystrokestotal,toktotal)
-    elif normalization=="segment": nkeystrokestotal=safediv(keystrokestotal,totalsegments)
-    if normalization=="char": nmouseactionstotal=safediv(mouseactionstotal,chartotal)
-    elif normalization=="token": nmouseactionstotal=safediv(mouseactionstotal,toktotal)
-    elif normalization=="segment": nmouseactionstotal=safediv(mouseactionstotal,totalsegments)
+    nkeystrokestotal=safediv(keystrokestotal,normfactor)
+    nmouseactionstotal=safediv(mouseactionstotal,normfactor)
     
     
     
     nkeystrokestotal=round(nkeystrokestotal,round_keys)
-    nmouseactionstotal=round(mouseactionstotal,round_mouse)
-    try:
-        KSR=round(keystrokestotal/chartotal,round_KSR)
-    except:
-        print("ERROR KSR ",sys.exc_info())
-        KSR=None
-    try:
-        MAR=round(mouseactionstotal/len(rawMT),round_MAR)
-    except:
-        print("ERROR MAR ",sys.exc_info())
-        MAR=None
-    try:
-        KSRM=round(KSR+MAR,round_KSRM)
-    except:
-        print("ERROR KSRM ",sys.exc_info())
-        KSRM=None
-    
-
-    
-    
-    try:
-        BLEU=corpus_bleu(references_tok,hypothesis_tok)
-        BLEU=round(BLEU,round_BLEU)
-    except:
-        print("ERROR BLEU ",sys.exc_info())
-        BLEU=None
-    
-    try:
-        NIST=corpus_nist(references_tok,hypothesis_tok)
-        NIST=round(NIST,round_NIST)
-    except:
-        print("ERROR NIST ",sys.exc_info())
-        NIST=None
-        
-    try:
-        TER=ter_corpus(references_tok,hypothesis_tok)
-        TER=round(TER,round_TER)
-    except:
-        print("ERROR TER ",sys.exc_info())
-        TER=None
-    
-    try:
-        WER=wer_corpus(references_tok,hypothesis_tok)
-        WER=round(WER,round_WER)
-    except:
-        print("ERROR WER ",sys.exc_info())
-        WER=None
-    try:
-        edtotal=0
-        for i in range(0,len(hypothesis)):
-            editmin=100000000
-            for h in references[i]:
-                ed=edit_distance(hypothesis[i],h)
-                if ed<editmin:
-                    editmin=ed
-            edtotal+=editmin
-        
-        EditDistance=100*(edtotal/chartotal)        
-        EditDistance=round(EditDistance,round_Ed)  
-    except:
-        print("ERROR EditDistance ",sys.exc_info())
-        EditDistance=None
-    
-    if Calculate_pruned:
-    #PRUNED GLOBAL VALUES
+    nmouseactionstotal=round(nmouseactionstotal,round_mouse)
+    if SHOW_KSR:
         try:
-            KSR_pruned=keystrokestotal_pruned/chartotal
-            KSR_pruned=round(KSR_pruned,round_KSR)
+            KSR=round(keystrokestotal/chartotal,round_KSR)
         except:
-            KSR_pruned=None
-        
+            print("ERROR KSR ",sys.exc_info())
+            KSR=None
+    if SHOW_MAR:
         try:
-            MAR_pruned=mouseactionstotal_pruned/len(rawMT)
-            MAR_pruned=round(MAR_pruned,round_MAR)
+            MAR=round(mouseactionstotal/len(rawMT),round_MAR)
         except:
-            MAR_pruned=None
-        
+            print("ERROR MAR ",sys.exc_info())
+            MAR=None
+    if SHOW_KSRM:
         try:
-            KSRM_pruned=KSR_pruned+MAR_pruned
-            KSRM_pruned=round(KSRM_pruned,round_KSRM)
+            KSRM=round(KSR+MAR,round_KSRM)
         except:
-            KSRM_pruned=None
-        
+            print("ERROR KSRM ",sys.exc_info())
+            KSRM=None
+    if SHOW_HBLEU:    
         try:
-            BLEU_pruned=corpus_bleu(references_tok_pruned,hypothesis_tok_pruned)
-            BLEU_pruned=round(BLEU_pruned,round_BLEU)
+            BLEU=corpus_bleu(references_tok,hypothesis_tok)
+            BLEU=round(BLEU,round_BLEU)
         except:
-            BLEU_pruned=None
-        
+            print("ERROR BLEU ",sys.exc_info())
+            BLEU=None
+    if SHOW_HNIST:
         try:
-            NIST_pruned=corpus_nist(references_tok_pruned,hypothesis_tok_pruned)
-            NIST_pruned=round(NIST_pruned,round_NIST)
+            NIST=corpus_nist(references_tok,hypothesis_tok)
+            NIST=round(NIST,round_NIST)
         except:
-            NIST_pruned=None
+            print("ERROR NIST ",sys.exc_info())
+            NIST=None
+    if SHOW_HWER:
         try:
-            TER_pruned=ter_corpus(references_tok_pruned,hypothesis_tok_pruned)
-            TER_pruned=round(TER_pruned,round_TER)
+            WER=wer_corpus(references_tok,hypothesis_tok)
+            WER=round(WER,round_WER)
         except:
-            TER_pruned=None
-        
-        try:
-            WER_pruned=wer_corpus(references_tok_pruned,hypothesis_tok_pruned)
-            WER_pruned=round(WER_pruned,round_WER)
-        except:
-            WER_pruned=None
+            print("ERROR WER ",sys.exc_info())
+            WER=None
+    if SHOW_HEd:
         try:
             edtotal=0
-            chartotal=0
             for i in range(0,len(hypothesis)):
                 editmin=100000000
-                chartotal+=len(hypothesis[i])
                 for h in references[i]:
                     ed=edit_distance(hypothesis[i],h)
                     if ed<editmin:
                         editmin=ed
                 edtotal+=editmin
             
-            EditDistance_pruned=100*(edtotal/chartotal)
-            
-            EditDistance_pruned=round(EditDistance_pruned,round_Ed)  
+            EditDistance=100*(edtotal/chartotal)        
+            EditDistance=round(EditDistance,round_Ed)  
         except:
-            EditDistance_pruned=None
+            print("ERROR EditDistance ",sys.exc_info())
+            EditDistance=None
+    
+    if Calculate_pruned:
+    #PRUNED GLOBAL VALUES
+        if SHOW_KSR:
+            try:
+                KSR_pruned=keystrokestotal_pruned/chartotal
+                KSR_pruned=round(KSR_pruned,round_KSR)
+            except:
+                KSR_pruned=None
+        if SHOW_MAR:
+            try:
+                MAR_pruned=mouseactionstotal_pruned/len(rawMT)
+                MAR_pruned=round(MAR_pruned,round_MAR)
+            except:
+                MAR_pruned=None
+        if SHOW_KSRM:
+            try:
+                KSRM_pruned=KSR_pruned+MAR_pruned
+                KSRM_pruned=round(KSRM_pruned,round_KSRM)
+            except:
+                KSRM_pruned=None
+        if SHOW_HBLEU:
+            try:
+                BLEU_pruned=corpus_bleu(references_tok_pruned,hypothesis_tok_pruned)
+                BLEU_pruned=round(BLEU_pruned,round_BLEU)
+            except:
+                BLEU_pruned=None
+        if SHOW_HNIST:
+            try:
+                NIST_pruned=corpus_nist(references_tok_pruned,hypothesis_tok_pruned)
+                NIST_pruned=round(NIST_pruned,round_NIST)
+            except:
+                NIST_pruned=None
+        if SHOW_HTER or SHOW_HTER_details:
+            try:
+                TERDICT_PRUNED=ter_corpus(references_tok_pruned,hypothesis_tok_pruned)
+                TER_pruned=round(TERDICT_PRUNED["TOTAL"]["TER"],round_TER)
+                INS_pruned=round(TERDICT_PRUNED["TOTAL"]["Ins"],round_TER)
+                DEL_pruned=round(TERDICT_PRUNED["TOTAL"]["Del"],round_TER)
+                SUB_pruned=round(TERDICT_PRUNED["TOTAL"]["Sub"],round_TER)
+                SHFT_pruned=round(TERDICT_PRUNED["TOTAL"]["Shft"],round_TER)
+                WDSH_pruned=round(TERDICT_PRUNED["TOTAL"]["WdSh"],round_TER)
+                NUMERR_pruned=round(TERDICT_PRUNED["TOTAL"]["NumErr"],round_TER)
+                NUMWD_pruned=round(TERDICT_PRUNED["TOTAL"]["NumWd"],round_TER)
+            except:
+                TER_pruned=None
+                INS_pruned=None
+                DEL_pruned=None
+                SUB_pruned=None
+                SHFT_pruned=None
+                WDSH_pruned=None
+                NUMERR_pruned=None
+                NUMWD_pruned=None
+        if SHOW_HWER:
+            try:
+                WER_pruned=wer_corpus(references_tok_pruned,hypothesis_tok_pruned)
+                WER_pruned=round(WER_pruned,round_WER)
+            except:
+                WER_pruned=None
+        if SHOW_HEd:
+            try:
+                edtotal=0
+                chartotal=0
+                for i in range(0,len(hypothesis)):
+                    editmin=100000000
+                    chartotal+=len(hypothesis[i])
+                    for h in references[i]:
+                        ed=edit_distance(hypothesis[i],h)
+                        if ed<editmin:
+                            editmin=ed
+                    edtotal+=editmin
+                
+                EditDistance_pruned=100*(edtotal/chartotal)
+                
+                EditDistance_pruned=round(EditDistance_pruned,round_Ed)  
+            except:
+                EditDistance_pruned=None
 
     #RESULTS TAB
     
@@ -693,41 +793,64 @@ def calculate_all(data):
     cadena="TOTAL MOUSE ACTIONS: "+str(mouseactionstotal)+" NORM MOUSE ACTIONS: "+str(nmouseactionstotal)+" "+normalizationstring+"\n"
     results_frame_text.insert(INSERT, cadena)
     
-    cadena="INSERTIONS: "+str(insertionstotal)+"\n"
-    results_frame_text.insert(INSERT, cadena)
-    
-    cadena="DELETIONS: "+str(deletionstotal)+"\n"
-    results_frame_text.insert(INSERT, cadena)
-    
-    cadena="SUBSTITUTIONS: "+str(substitutionstotal)+"\n"
-    results_frame_text.insert(INSERT, cadena)
-    
-    cadena="REORDERING: "+str(reorderingtotal)+"\n"
-    results_frame_text.insert(INSERT, cadena)
-    
-    cadena="KSR: "+str(KSR)+"\n"
-    results_frame_text.insert(INSERT, cadena)
-    
-    cadena="MAR: "+str(MAR)+"\n"
-    results_frame_text.insert(INSERT, cadena)
-    
-    cadena="KSRM: "+str(KSRM)+"\n"
-    results_frame_text.insert(INSERT, cadena)
-    
-    cadena="BLEU: "+str(BLEU)+"\n"
-    results_frame_text.insert(INSERT, cadena)
-    
-    cadena="NIST: "+str(NIST)+"\n"
-    results_frame_text.insert(INSERT, cadena)
-    
-    cadena="TER: "+str(TER)+"\n"
-    results_frame_text.insert(INSERT, cadena)
-    
-    cadena="WER: "+str(WER)+"\n"
-    results_frame_text.insert(INSERT, cadena)
-    
-    cadena="%EdDist: "+str(EditDistance)+"\n"
-    results_frame_text.insert(INSERT, cadena)
+    if SHOW_INSERTIONS:
+        cadena="TOTAL INSERTIONS: "+str(insertionstotal)+" NORM INSERTIONS: "+str(round(safediv(insertionstotal,normfactor),round_other))+" "+normalizationstring+"\n"
+        results_frame_text.insert(INSERT, cadena)
+    if SHOW_DELETIONS:
+        cadena="TOTAL DELETIONS: "+str(deletionstotal)+" NORM DELETIONS: "+str(round(safediv(deletionstotal,normfactor),round_other))+" "+normalizationstring+"\n"
+        results_frame_text.insert(INSERT, cadena)
+    if SHOW_SUBSTITUTIONS:
+        cadena="TOTAL SUBSTITUTIONS: "+str(substitutionstotal)+" NORM SUBSTITUTIONS: "+str(round(safediv(substitutionstotal,normfactor),round_other))+" "+normalizationstring+"\n"
+        results_frame_text.insert(INSERT, cadena)
+    if SHOW_REORDERING:
+        cadena="TOTAL REORDERING: "+str(reorderingtotal)+" NORM REORDERING: "+str(round(safediv(reorderingtotal,normfactor),round_other))+" "+normalizationstring+"\n"
+        results_frame_text.insert(INSERT, cadena)
+    if SHOW_KSR:
+        cadena="KSR: "+str(KSR)+"\n"
+        results_frame_text.insert(INSERT, cadena)
+    if SHOW_MAR:
+        cadena="MAR: "+str(MAR)+"\n"
+        results_frame_text.insert(INSERT, cadena)
+    if SHOW_KSR:
+        cadena="KSRM: "+str(KSRM)+"\n"
+        results_frame_text.insert(INSERT, cadena)
+    if SHOW_HBLEU:
+        cadena="BLEU: "+str(BLEU)+"\n"
+        results_frame_text.insert(INSERT, cadena)
+    if SHOW_HNIST:
+        cadena="NIST: "+str(NIST)+"\n"
+        results_frame_text.insert(INSERT, cadena)
+    if SHOW_HTER:
+        cadena="TER: "+str(TER)+"\n"
+        results_frame_text.insert(INSERT, cadena)
+    if SHOW_HWER:
+        cadena="WER: "+str(WER)+"\n"
+        results_frame_text.insert(INSERT, cadena)
+    if SHOW_HTER_details:
+        cadena="Ins: "+str(INS)+" NORM Ins: "+str(round(safediv(INS,normfactor),round_other))+" "+normalizationstring+"\n"
+        results_frame_text.insert(INSERT, cadena)
+        
+        cadena="Del: "+str(DEL)+" NORM Del: "+str(round(safediv(DEL,normfactor),round_other))+" "+normalizationstring+"\n"
+        results_frame_text.insert(INSERT, cadena)
+        
+        cadena="Sub: "+str(SUB)+" NORM Sub: "+str(round(safediv(SUB,normfactor),round_other))+" "+normalizationstring+"\n"
+        results_frame_text.insert(INSERT, cadena)
+        
+        cadena="Shft: "+str(SHFT)+" NORM Shft: "+str(round(safediv(SHFT,normfactor),round_other))+" "+normalizationstring+"\n"
+        results_frame_text.insert(INSERT, cadena)
+        
+        cadena="WdSh: "+str(WDSH)+" NORM WdSh: "+str(round(safediv(WDSH,normfactor),round_other))+" "+normalizationstring+"\n"
+        results_frame_text.insert(INSERT, cadena)
+        
+        cadena="NumErr: "+str(NUMERR)+" NORM NumErr: "+str(round(safediv(NUMERR,normfactor),round_other))+" "+normalizationstring+"\n"
+        results_frame_text.insert(INSERT, cadena)
+        
+        cadena="NumWd: "+str(NUMWD)+" NORM NumWd: "+str(round(safediv(NUMWD,normfactor),round_other))+" "+normalizationstring+"\n"
+        results_frame_text.insert(INSERT, cadena)
+        
+    if SHOW_HEd:
+        cadena="%EdDist: "+str(EditDistance)+"\n"
+        results_frame_text.insert(INSERT, cadena)
     
     if Calculate_pruned:
 
@@ -739,42 +862,64 @@ def calculate_all(data):
         
         cadena="st. dev. time: "+str(round(stdevtime,round_time))+" "+normalizationstring+"\n"
         results_frame_text.insert(INSERT, cadena)
-        
-        cadena="INSERTIONS: "+str(insertionstotal_pruned)+"\n"
-        results_frame_text.insert(INSERT, cadena)
-        
-        cadena="DELETIONS: "+str(deletionstotal_pruned)+"\n"
-        results_frame_text.insert(INSERT, cadena)
-        
-        cadena="SUBSTITUTIONS: "+str(substitutionstotal_pruned)+"\n"
-        results_frame_text.insert(INSERT, cadena)
-        
-        cadena="REORDERING: "+str(reorderingtotal_pruned)+"\n"
-        results_frame_text.insert(INSERT, cadena)
-        
-        cadena="KSR: "+str(KSR_pruned)+"\n"
-        results_frame_text.insert(INSERT, cadena)
-        
-        cadena="MAR: "+str(MAR_pruned)+"\n"
-        results_frame_text.insert(INSERT, cadena)
-        
-        cadena="KSRM: "+str(KSRM_pruned)+"\n"
-        results_frame_text.insert(INSERT, cadena)
-        
-        cadena="BLEU: "+str(BLEU_pruned)+"\n"
-        results_frame_text.insert(INSERT, cadena)
-        
-        cadena="NIST: "+str(NIST_pruned)+"\n"
-        results_frame_text.insert(INSERT, cadena)
-        
-        cadena="TER: "+str(TER_pruned)+"\n"
-        results_frame_text.insert(INSERT, cadena)
-        
-        cadena="WER: "+str(WER_pruned)+"\n"
-        results_frame_text.insert(INSERT, cadena)
-        
-        cadena="%EdDist: "+str(EditDistance_pruned)+"\n"
-        results_frame_text.insert(INSERT, cadena)
+        if SHOW_INSERTIONS:
+            cadena="TOTAL INSERTIONS: "+str(insertionstotal_pruned)+" NORM INSERTIONS: "+str(round(safediv(insertionstotal_pruned,normfactor),round_other))+" "+normalizationstring+"\n"
+            results_frame_text.insert(INSERT, cadena)
+        if SHOW_DELETIONS:
+            cadena="TOTAL DELETIONS: "+str(deletionstotal_pruned)+" NORM DELETIONS: "+str(round(safediv(deletionstotal_pruned,normfactor),round_other))+" "+normalizationstring+"\n"
+            results_frame_text.insert(INSERT, cadena)
+        if SHOW_SUBSTITUTIONS:
+            cadena="TOTAL SUBSTITUTIONS: "+str(substitutionstotal_pruned)+" NORM SUBSTITUTIONS: "+str(round(safediv(substitutionstotal_pruned,normfactor),round_other))+" "+normalizationstring+"\n"
+            results_frame_text.insert(INSERT, cadena)
+        if SHOW_REORDERING:
+            cadena="TOTAL REORDERING: "+str(reorderingtotal_pruned)+" NORM REORDERING: "+str(round(safediv(reorderingtotal_pruned,normfactor),round_other))+" "+normalizationstring+"\n"
+            results_frame_text.insert(INSERT, cadena)
+        if SHOW_KSR:
+            cadena="KSR: "+str(KSR_pruned)+"\n"
+            results_frame_text.insert(INSERT, cadena)
+        if SHOW_MAR:
+            cadena="MAR: "+str(MAR_pruned)+"\n"
+            results_frame_text.insert(INSERT, cadena)
+        if SHOW_KSRM:
+            cadena="KSRM: "+str(KSRM_pruned)+"\n"
+            results_frame_text.insert(INSERT, cadena)
+        if SHOW_HBLEU:
+            cadena="BLEU: "+str(BLEU_pruned)+"\n"
+            results_frame_text.insert(INSERT, cadena)
+        if SHOW_HNIST:
+            cadena="NIST: "+str(NIST_pruned)+"\n"
+            results_frame_text.insert(INSERT, cadena)
+        if SHOW_HTER:
+            cadena="TER: "+str(TER_pruned)+"\n"
+            results_frame_text.insert(INSERT, cadena)
+        if SHOW_HTER_details:
+            cadena="Ins: "+str(INS_pruned)+" NORM Ins: "+str(round(safediv(INS_pruned,normfactor),round_other))+" "+normalizationstring+"\n"
+            results_frame_text.insert(INSERT, cadena)
+            
+            cadena="Del: "+str(DEL_pruned)+" NORM Del: "+str(round(safediv(DEL_pruned,normfactor),round_other))+" "+normalizationstring+"\n"
+            results_frame_text.insert(INSERT, cadena)
+            
+            cadena="Sub: "+str(SUB_pruned)+" NORM Sub: "+str(round(safediv(SUB_pruned,normfactor),round_other))+" "+normalizationstring+"\n"
+            results_frame_text.insert(INSERT, cadena)
+            
+            cadena="Shft: "+str(SHFT_pruned)+" NORM Shft: "+str(round(safediv(SHFT_pruned,normfactor),round_other))+" "+normalizationstring+"\n"
+            results_frame_text.insert(INSERT, cadena)
+            
+            cadena="WdSh: "+str(WDSH_pruned)+" NORM WdSh: "+str(round(safediv(WDSH_pruned,normfactor),round_other))+" "+normalizationstring+"\n"
+            results_frame_text.insert(INSERT, cadena)
+            
+            cadena="NumErr: "+str(NUMERR_pruned)+" NORM NumErr: "+str(round(safediv(NUMERR_pruned,normfactor),round_other))+" "+normalizationstring+"\n"
+            results_frame_text.insert(INSERT, cadena)
+            
+            cadena="NumWd: "+str(NUMWD_pruned)+" NORM NumWd: "+str(round(safediv(NUMWD_pruned,normfactor),round_other))+" "+normalizationstring+"\n"
+            results_frame_text.insert(INSERT, cadena)
+            
+        if SHOW_HWER:
+            cadena="WER: "+str(WER_pruned)+"\n"
+            results_frame_text.insert(INSERT, cadena)
+        if SHOW_HEd:
+            cadena="%EdDist: "+str(EditDistance_pruned)+"\n"
+            results_frame_text.insert(INSERT, cadena)
     
     
     if Create_excel or Create_tabbedtext:
@@ -850,58 +995,141 @@ def calculate_all(data):
         sheetAll.write(filera,1,nmouseactionstotal)
         sheetAll.write(filera,2,normalizationstring)
         filera+=1
+        if SHOW_INSERTIONS:
+            sheetAll.write(filera,0,"INSERTIONS")
+            sheetAll.write(filera,1,insertionstotal)
+            filera+=1
         
-        sheetAll.write(filera,0,"INSERTIONS")
-        sheetAll.write(filera,1,insertionstotal)
-        filera+=1
+            sheetAll.write(filera,0,"NORM. INSERTIONS")
+            sheetAll.write(filera,1,round(safediv(insertionstotal,normfactor),round_other))
+            sheetAll.write(filera,2,normalizationstring)
+            filera+=1
+        if SHOW_DELETIONS:
+            sheetAll.write(filera,0,"DELETIONS")
+            sheetAll.write(filera,1,deletionstotal)
+            filera+=1
+            
+            sheetAll.write(filera,0,"NORM. DELETIONS")
+            sheetAll.write(filera,1,round(safediv(deletionstotal,normfactor),round_other))
+            sheetAll.write(filera,2,normalizationstring)
+            filera+=1
+        if SHOW_SUBSTITUTIONS:
+            sheetAll.write(filera,0,"SUBSTITUTIONS")
+            sheetAll.write(filera,1,substitutionstotal)
+            filera+=1
         
-        sheetAll.write(filera,0,"DELETIONS")
-        sheetAll.write(filera,1,deletionstotal)
-        filera+=1
-        
-        sheetAll.write(filera,0,"SUBSTITUTIONS")
-        sheetAll.write(filera,1,substitutionstotal)
-        filera+=1
-        
-        sheetAll.write(filera,0,"REORDERING")
-        sheetAll.write(filera,1,reorderingtotal)
-        filera+=1
-        
-        sheetAll.write(filera,0,"KSR")
-        sheetAll.write(filera,1,KSR)
-        filera+=1
-        
-        sheetAll.write(filera,0,"MAR")
-        sheetAll.write(filera,1,MAR)
-        filera+=1
-        
-        sheetAll.write(filera,0,"KSRM")
-        sheetAll.write(filera,1,KSRM)
-        filera+=1        
-        
-        sheetAll.write(filera,0,"BLEU")
-        sheetAll.write(filera,1,BLEU)
-        filera+=1
-        
-        sheetAll.write(filera,0,"NIST")
-        sheetAll.write(filera,1,NIST)
-        filera+=1
-        
-        sheetAll.write(filera,0,"TER")
-        sheetAll.write(filera,1,TER)
-        filera+=1
-        
-        sheetAll.write(filera,0,"WER")
-        sheetAll.write(filera,1,WER)
-        filera+=1
-        
-        sheetAll.write(filera,0,"%EdDist")
-        sheetAll.write(filera,1,EditDistance)
-        filera+=1
+            sheetAll.write(filera,0,"NORM. SUBSTITUTIONS")
+            sheetAll.write(filera,1,round(safediv(substitutionstotal,normfactor),round_other))
+            sheetAll.write(filera,2,normalizationstring)
+            filera+=1
+        if SHOW_REORDERING:
+            sheetAll.write(filera,0,"REORDERING")
+            sheetAll.write(filera,1,reorderingtotal)
+            filera+=1
+            
+            sheetAll.write(filera,0,"NORM. REORDERING")
+            sheetAll.write(filera,1,round(safediv(reorderingtotal,normfactor),round_other))
+            sheetAll.write(filera,2,normalizationstring)
+            filera+=1
+        if SHOW_KSR:
+            sheetAll.write(filera,0,"KSR")
+            sheetAll.write(filera,1,KSR)
+            filera+=1
+        if SHOW_MAR:
+            sheetAll.write(filera,0,"MAR")
+            sheetAll.write(filera,1,MAR)
+            filera+=1
+        if SHOW_KSRM:
+            sheetAll.write(filera,0,"KSRM")
+            sheetAll.write(filera,1,KSRM)
+            filera+=1        
+        if SHOW_HBLEU:
+            sheetAll.write(filera,0,"BLEU")
+            sheetAll.write(filera,1,BLEU)
+            filera+=1
+        if SHOW_HNIST:
+            sheetAll.write(filera,0,"NIST")
+            sheetAll.write(filera,1,NIST)
+            filera+=1
+        if SHOW_HTER:
+            sheetAll.write(filera,0,"TER")
+            sheetAll.write(filera,1,TER)
+            filera+=1
+        if SHOW_HTER_details:
+            sheetAll.write(filera,0,"Ins")
+            sheetAll.write(filera,1,INS)
+            filera+=1
+            
+            sheetAll.write(filera,0,"NORM. Ins")
+            sheetAll.write(filera,1,round(safediv(INS,normfactor),round_other))
+            sheetAll.write(filera,2,normalizationstring)
+            filera+=1
+            
+            sheetAll.write(filera,0,"Del")
+            sheetAll.write(filera,1,DEL)
+            filera+=1
+            
+            sheetAll.write(filera,0,"NORM. Del")
+            sheetAll.write(filera,1,round(safediv(DEL,normfactor),round_other))
+            sheetAll.write(filera,2,normalizationstring)
+            filera+=1
+            
+            sheetAll.write(filera,0,"Sub")
+            sheetAll.write(filera,1,SUB)
+            filera+=1
+            
+            sheetAll.write(filera,0,"NORM. Sub")
+            sheetAll.write(filera,1,round(safediv(SUB,normfactor),round_other))
+            sheetAll.write(filera,2,normalizationstring)
+            filera+=1
+            
+            sheetAll.write(filera,0,"Shft")
+            sheetAll.write(filera,1,SHFT)
+            filera+=1
+            
+            sheetAll.write(filera,0,"NORM. Shft")
+            sheetAll.write(filera,1,round(safediv(SHFT,normfactor),round_other))
+            sheetAll.write(filera,2,normalizationstring)
+            filera+=1
+            
+            sheetAll.write(filera,0,"WdSh")
+            sheetAll.write(filera,1,WDSH)
+            filera+=1
+            
+            sheetAll.write(filera,0,"NORM. WDSH")
+            sheetAll.write(filera,1,round(safediv(WDSH,normfactor),round_other))
+            sheetAll.write(filera,2,normalizationstring)
+            filera+=1
+            
+            sheetAll.write(filera,0,"NumErr")
+            sheetAll.write(filera,1,NUMERR)
+            filera+=1
+            
+            sheetAll.write(filera,0,"NORM. NumErr")
+            sheetAll.write(filera,1,round(safediv(NUMERR,normfactor),round_other))
+            sheetAll.write(filera,2,normalizationstring)
+            filera+=1
+            
+            sheetAll.write(filera,0,"NumWd")
+            sheetAll.write(filera,1,NUMWD)
+            filera+=1
+            
+            sheetAll.write(filera,0,"NORM. NumWd")
+            sheetAll.write(filera,1,round(safediv(NUMWD,normfactor),round_other))
+            sheetAll.write(filera,2,normalizationstring)
+            filera+=1
+        if SHOW_HWER:
+            sheetAll.write(filera,0,"WER")
+            sheetAll.write(filera,1,WER)
+            filera+=1
+        if SHOW_HEd:
+            sheetAll.write(filera,0,"%EdDist")
+            sheetAll.write(filera,1,EditDistance)
+            filera+=1
         
         if Calculate_pruned:
         
-            sheetAll.write(filera,0,"PRUNED VALUES:")
+            sheetAll.write(filera,0,"PRUNED VALUES:",bold)
             filera+=1
             
             sheetAll.write(filera,0,"mean time:")
@@ -913,54 +1141,137 @@ def calculate_all(data):
             sheetAll.write(filera,1,round(stdevtime,round_time))
             sheetAll.write(filera,2,normalizationstring)
             filera+=1
+            if SHOW_INSERTIONS:
+                sheetAll.write(filera,0,"INSERTIONS")
+                sheetAll.write(filera,1,insertionstotal_pruned)
+                filera+=1
+                
+                sheetAll.write(filera,0,"NORM. INSERTIONS")
+                sheetAll.write(filera,1,round(safediv(insertionstotal_pruned,normfactor),round_other))
+                sheetAll.write(filera,2,normalizationstring)
+                filera+=1
+            if SHOW_DELETIONS:
+                sheetAll.write(filera,0,"DELETIONS")
+                sheetAll.write(filera,1,deletionstotal_pruned)
+                filera+=1
+                
+                sheetAll.write(filera,0,"NORM. DELETIONS")
+                sheetAll.write(filera,1,round(safediv(deletionstotal_pruned,normfactor),round_other))
+                sheetAll.write(filera,2,normalizationstring)
+                filera+=1
+            if SHOW_SUBSTITUTIONS:
+                sheetAll.write(filera,0,"SUBSTITUTIONS")
+                sheetAll.write(filera,1,substitutionstotal_pruned)
+                filera+=1
+                
+                sheetAll.write(filera,0,"NORM. SUBSTITUTIONS")
+                sheetAll.write(filera,1,round(safediv(substitutionstotal_pruned,normfactor),round_other))
+                sheetAll.write(filera,2,normalizationstring)
+                filera+=1
+            if SHOW_REORDERING:
+                sheetAll.write(filera,0,"REORDERING")
+                sheetAll.write(filera,1,reorderingtotal_pruned)
+                filera+=1
+                
+                sheetAll.write(filera,0,"NORM. REORDERING")
+                sheetAll.write(filera,1,round(safediv(reorderingtotal_pruned,normfactor),round_other))
+                sheetAll.write(filera,2,normalizationstring)
+                filera+=1
+            if SHOW_KSR:
+                sheetAll.write(filera,0,"KSR")
+                sheetAll.write(filera,1,KSR_pruned)
+                filera+=1
+            if SHOW_MAR:
+                sheetAll.write(filera,0,"MAR")
+                sheetAll.write(filera,1,MAR_pruned)
+                filera+=1
+            if SHOW_KSRM:
+                sheetAll.write(filera,0,"KSRM")
+                sheetAll.write(filera,1,KSRM_pruned)
+                filera+=1
+            if SHOW_HBLEU:
+                sheetAll.write(filera,0,"BLEU")
+                sheetAll.write(filera,1,BLEU_pruned)
+                filera+=1
+            if SHOW_HNIST:
+                sheetAll.write(filera,0,"NIST")
+                sheetAll.write(filera,1,NIST_pruned)
+                filera+=1
+            if SHOW_HWER:
+                sheetAll.write(filera,0,"WER")
+                sheetAll.write(filera,1,WER_pruned)
+                filera+=1
+            if SHOW_HTER:
+                sheetAll.write(filera,0,"TER")
+                sheetAll.write(filera,1,TER_pruned)
+                filera+=1
+            if SHOW_HTER_details:
+                sheetAll.write(filera,0,"Ins")
+                sheetAll.write(filera,1,INS_pruned)
+                filera+=1
             
-            sheetAll.write(filera,0,"INSERTIONS")
-            sheetAll.write(filera,1,insertionstotal_pruned)
+                sheetAll.write(filera,0,"NORM. Ins")
+                sheetAll.write(filera,1,round(safediv(INS_pruned,normfactor),round_other))
+                sheetAll.write(filera,2,normalizationstring)
+                filera+=1
+                
+                sheetAll.write(filera,0,"Del")
+                sheetAll.write(filera,1,DEL_pruned)
+                filera+=1
+                
+                sheetAll.write(filera,0,"NORM. Del")
+                sheetAll.write(filera,1,round(safediv(DEL_pruned,normfactor),round_other))
+                sheetAll.write(filera,2,normalizationstring)
+                filera+=1
+                
+                sheetAll.write(filera,0,"Sub")
+                sheetAll.write(filera,1,SUB_pruned)
+                filera+=1
+                
+                sheetAll.write(filera,0,"NORM. Sub")
+                sheetAll.write(filera,1,round(safediv(SUB_pruned,normfactor),round_other))
+                sheetAll.write(filera,2,normalizationstring)
+                filera+=1
+                
+                sheetAll.write(filera,0,"Shft")
+                sheetAll.write(filera,1,SHFT_pruned)
+                filera+=1
+                
+                sheetAll.write(filera,0,"NORM. Shft")
+                sheetAll.write(filera,1,round(safediv(SHFT_pruned,normfactor),round_other))
+                sheetAll.write(filera,2,normalizationstring)
+                filera+=1
+                
+                sheetAll.write(filera,0,"WdSh")
+                sheetAll.write(filera,1,WDSH_pruned)
+                filera+=1
+                
+                sheetAll.write(filera,0,"NORM. WdSh")
+                sheetAll.write(filera,1,round(safediv(WDSH_pruned,normfactor),round_other))
+                sheetAll.write(filera,2,normalizationstring)
+                filera+=1
+                
+                sheetAll.write(filera,0,"NumErr")
+                sheetAll.write(filera,1,NUMERR_pruned)
+                filera+=1
+                
+                sheetAll.write(filera,0,"NORM. NumErr")
+                sheetAll.write(filera,1,round(safediv(NUMERR_pruned,normfactor),round_other))
+                sheetAll.write(filera,2,normalizationstring)
+                filera+=1
+                
+                sheetAll.write(filera,0,"NumWd")
+                sheetAll.write(filera,1,NUMWD_pruned)
+                filera+=1
+                
+                sheetAll.write(filera,0,"NORM. NumWd")
+                sheetAll.write(filera,1,round(safediv(NUMWD_pruned,normfactor),round_other))
+                sheetAll.write(filera,2,normalizationstring)
             filera+=1
-            
-            sheetAll.write(filera,0,"DELETIONS")
-            sheetAll.write(filera,1,deletionstotal_pruned)
-            filera+=1
-            
-            sheetAll.write(filera,0,"SUBSTITUTIONS")
-            sheetAll.write(filera,1,substitutionstotal_pruned)
-            filera+=1
-            
-            sheetAll.write(filera,0,"REORDERING")
-            sheetAll.write(filera,1,reorderingtotal_pruned)
-            filera+=1
-            
-            sheetAll.write(filera,0,"KSR")
-            sheetAll.write(filera,1,KSR_pruned)
-            filera+=1
-            
-            sheetAll.write(filera,0,"MAR")
-            sheetAll.write(filera,1,MAR_pruned)
-            filera+=1
-            
-            sheetAll.write(filera,0,"KSRM")
-            sheetAll.write(filera,1,KSRM_pruned)
-            filera+=1
-
-            sheetAll.write(filera,0,"BLEU")
-            sheetAll.write(filera,1,BLEU_pruned)
-            filera+=1
-            
-            sheetAll.write(filera,0,"NIST")
-            sheetAll.write(filera,1,NIST_pruned)
-            filera+=1
-            
-            sheetAll.write(filera,0,"TER")
-            sheetAll.write(filera,1,TER_pruned)
-            filera+=1
-            
-            sheetAll.write(filera,0,"WER")
-            sheetAll.write(filera,1,WER_pruned)
-            filera+=1
-            
-            sheetAll.write(filera,0,"%EdDist")
-            sheetAll.write(filera,1,EditDistance_pruned)
-            filera+=1
+            if SHOW_HEd:
+                sheetAll.write(filera,0,"%EdDist")
+                sheetAll.write(filera,1,EditDistance_pruned)
+                filera+=1
             
     sorter={}
     cont=0
@@ -994,6 +1305,10 @@ def calculate_all(data):
     sheetDetailed.write(0, 4, "DIFF.", bold)
     cadena.append("DIFF.")
     column=5
+    if Detailed_results_LONG_PAUSES: 
+        sheetDetailed.write(0, column, "LONG PAUSES", bold)
+        cadena.append("LONG PAUSES")
+        column+=1
     if Detailed_results_KSR: 
         sheetDetailed.write(0, column, "KSR", bold)
         cadena.append("KSR")
@@ -1034,10 +1349,40 @@ def calculate_all(data):
         sheetDetailed.write(0, column, "WER", bold)
         cadena.append("WER")
         column+=1
+    
+    if Detailed_results_Ins: 
+        sheetDetailed.write(0, column, "Ins", bold)
+        cadena.append("Ins")
+        column+=1
+    if Detailed_results_Del: 
+        sheetDetailed.write(0, column, "Del", bold)
+        cadena.append("Del")
+        column+=1
+    if Detailed_results_Sub: 
+        sheetDetailed.write(0, column, "Sub", bold)
+        cadena.append("Sub")
+        column+=1
+    if Detailed_results_Shft: 
+        sheetDetailed.write(0, column, "Shft", bold)
+        cadena.append("Shft")
+        column+=1
+    if Detailed_results_WdSh: 
+        sheetDetailed.write(0, column, "WdSh", bold)
+        cadena.append("WdSh")
+        column+=1
+    if Detailed_results_NumErr: 
+        sheetDetailed.write(0, column, "NumErr", bold)
+        cadena.append("NumErr")
+        column+=1
+    if Detailed_results_NumWd: 
+        sheetDetailed.write(0, column, "NumWd", bold)
+        cadena.append("NumWd")
+        column+=1
     if Detailed_results_TER: 
         sheetDetailed.write(0, column, "TER", bold)
-        cadena.append("WER")
+        cadena.append("TER")
         column+=1
+        
     if Detailed_results_Ed: 
         sheetDetailed.write(0, column, "EditDistance", bold)
         cadena.append("EditDistance")
@@ -1086,6 +1431,10 @@ def calculate_all(data):
             sheetDetailed.write_rich_string(row,4, *dE, text_wrap)
             cadena.append(dEtext)
             column=5
+            if Detailed_results_LONG_PAUSES: 
+                sheetDetailed.write(row, column, data[sident]["LONG_PAUSES"])
+                cadena.append(str(data[sident]["LONG_PAUSES"]))
+                column+=1
             if Detailed_results_KSR: 
                 sheetDetailed.write(row, column, data[sident]["KSR"])
                 cadena.append(str(data[sident]["KSR"]))
@@ -1125,6 +1474,34 @@ def calculate_all(data):
             if Detailed_results_WER: 
                 sheetDetailed.write(row, column, data[sident]["WER"])
                 cadena.append(str(data[sident]["WER"]))
+                column+=1
+            if Detailed_results_Ins: 
+                sheetDetailed.write(row, column, data[sident]["Ins"])
+                cadena.append(str(data[sident]["Ins"]))
+                column+=1
+            if Detailed_results_Del: 
+                sheetDetailed.write(row, column, data[sident]["Del"])
+                cadena.append(str(data[sident]["Del"]))
+                column+=1
+            if Detailed_results_Sub: 
+                sheetDetailed.write(row, column, data[sident]["Sub"])
+                cadena.append(str(data[sident]["Sub"]))
+                column+=1
+            if Detailed_results_Shft: 
+                sheetDetailed.write(row, column, data[sident]["Shft"])
+                cadena.append(str(data[sident]["Shft"]))
+                column+=1
+            if Detailed_results_WdSh: 
+                sheetDetailed.write(row, column, data[sident]["WdSh"])
+                cadena.append(str(data[sident]["WdSh"]))
+                column+=1
+            if Detailed_results_NumErr: 
+                sheetDetailed.write(row, column, data[sident]["NumErr"])
+                cadena.append(str(data[sident]["NumErr"]))
+                column+=1
+            if Detailed_results_NumWd: 
+                sheetDetailed.write(row, column, data[sident]["NumWd"])
+                cadena.append(str(data[sident]["NumWd"]))
                 column+=1
             if Detailed_results_TER: 
                 sheetDetailed.write(row, column, data[sident]["TER"])
@@ -1164,226 +1541,7 @@ def calculate_all(data):
             pass    
     workbook.close()
     
-    '''
-    #EXCEL
-    
-
-    fileresults=E2.get()
-    if fileresults.endswith(".txt"): fileresults=fileresults.replace(".txt","")
-    if fileresults.endswith(".xlsx"): fileresults=fileresults.replace(".xlsx","")
-    nomexcelfile=fileresults+".xlsx"
-    nomtextfile=fileresults+".txt"
-    sortida=codecs.open(nomtextfile,"w",encoding="utf-8")
-    
-
-
-
-
-    Detailed_sort_measure="Apparition"
-    sorter={}
-    cont=0
-
-    idents=sorted(list(data.keys()))
-    for ident in idents:
-        try:
-            if Detailed_sort_measure=="BLEU": sorter[ident]=data[ident]["BLEU"]
-            if Detailed_sort_measure=="NIST": sorter[ident]=data[ident]["NIST"]
-            if Detailed_sort_measure=="WER": sorter[ident]=data[ident]["WER"]
-            if Detailed_sort_measure=="TER": sorter[ident]=data[ident]["TER"]
-            if Detailed_sort_measure=="EditDistance": sorter[ident]=data[ident]["EditDistance"]
-            if Detailed_sort_measure=="Apparition": sorter[ident]=ident
-            cont+=1
-        except:
-            pass
-            
-    #if Detailed_sort_order=="ascending":
-    sortident=sorted(sorter, key=sorter.get, reverse=False)
-    #elif Detailed_sort_order=="descending":  
-    #    sortident=sorted(sorter, key=sorter.get, reverse=True) 
-    cadena=[]
-    sheetDetailed.write(0, 0, "IDENT.", bold)
-    cadena.append("IDENT.")
-    sheetDetailed.write(0, 1, "Source", bold)
-    cadena.append("Source")
-    sheetDetailed.write(0, 2, "Raw MT", bold)
-    cadena.append("Raw MT")
-    sheetDetailed.write(0, 3, "Post-Edited", bold)
-    cadena.append("Post-Edited")
-    sheetDetailed.write(0, 4, "DIFF.", bold)
-    cadena.append("DIFF.")
-    column=5
-    if Detailed_results_KSR: 
-        sheetDetailed.write(0, column, "KSR", bold)
-        cadena.append("KSR")
-        column+=1
-    if Detailed_results_MAR: 
-        sheetDetailed.write(0, column, "MAR", bold)
-        cadena.append("MAR")
-        column+=1
-    if Detailed_results_KSRM: 
-        sheetDetailed.write(0, column, "KSRM", bold)
-        cadena.append("KSRM")
-        column+=1
-    if Detailed_results_INSERTIONS: 
-        sheetDetailed.write(0, column, "INSERTIONS", bold)
-        cadena.append("INSERTIONS")
-        column+=1
-    if Detailed_results_DELETIONS: 
-        sheetDetailed.write(0, column, "DELETIONS", bold)
-        cadena.append("DELETIONS")
-        column+=1
-    if Detailed_results_SUBSTITUTIONS: 
-        sheetDetailed.write(0, column, "SUBSTITUTIONS", bold)
-        cadena.append("SUBSTITUTIONS")
-        column+=1
-    if Detailed_results_REORDERING: 
-        sheetDetailed.write(0, column, "REORDERING", bold)
-        cadena.append("REORDERING")
-        column+=1
-    if Detailed_results_BLEU: 
-        sheetDetailed.write(0, column, "BLEU", bold)
-        cadena.append("BLEU")
-        column+=1
-    if Detailed_results_NIST: 
-        sheetDetailed.write(0, column, "NIST", bold)
-        cadena.append("NIST")
-        column+=1
-    if Detailed_results_WER: 
-        sheetDetailed.write(0, column, "WER", bold)
-        cadena.append("WER")
-        column+=1
-    if Detailed_results_TER: 
-        sheetDetailed.write(0, column, "TER", bold)
-        cadena.append("WER")
-        column+=1
-    if Detailed_results_Ed: 
-        sheetDetailed.write(0, column, "EditDistance", bold)
-        cadena.append("EditDistance")
-        column+=1
-    sheetDetailed.write(0, column, "TIME", bold)
-    cadena.append("TIME")
-    column+=1
-    sheetDetailed.write(0, column, "TIME NORM.", bold)
-    cadena.append("TIME_NORM")
-    column+=1
-    sheetDetailed.write(0, column, "KEYSTROKES", bold)
-    cadena.append("KEYSTROKES")
-    column+=1
-    sheetDetailed.write(0, column, "KEYSTROKES NORM.", bold)
-    cadena.append("KEYSTROKES_NORM")
-    column+=1
-    sheetDetailed.write(0, column, "MOUSEACTIONS", bold)
-    cadena.append("KEYSTROKES")
-    column+=1
-    sheetDetailed.write(0, column, "MOUSEACTIONS NORM.", bold)
-    cadena.append("KEYSTROKES_NORM")
-    column+=1
-    sheetDetailed.write(0, column, "PRUNED", bold)
-    cadena.append("KEYSTROKES_NORM")
-    column+=1
-    cadena="\t".join(cadena)
-    sortida.write(cadena+"\n")
-    row=1
-    for sident in sortident:
-        
-        try:
-            cadena=[]
-            if data[sident]["PRUNED"]:
-                sheetDetailed.write(row, 0, sident, bgred)
-            else:
-                sheetDetailed.write(row, 0, sident)
-            cadena.append(str(sident))
-            sheetDetailed.write(row, 1, data[sident]["source"], text_wrap)
-            cadena.append(data[sident]["source"].replace("\n"," "))
-            sheetDetailed.write(row, 2, data[sident]["rawMT"], text_wrap)
-            cadena.append(data[sident]["rawMT"].replace("\n"," "))
-            sheetDetailed.write(row, 3, data[sident]["postED"], text_wrap)
-            cadena.append(data[sident]["postED"])
-            dE=differencesExcel(data[sident]["postED"],data[sident]["rawMT"],red,blue,bold)
-            dEtext=differences(data[sident]["postED"].replace("\n"," "),data[sident]["rawMT"].replace("\n"," "))
-            sheetDetailed.write_rich_string(row,4, *dE, text_wrap)
-            cadena.append(dEtext)
-            column=5
-            if Detailed_results_KSR: 
-                sheetDetailed.write(row, column, data[sident]["KSR"])
-                cadena.append(str(data[sident]["KSR"]))
-                column+=1
-            if Detailed_results_KSR: 
-                sheetDetailed.write(row, column, data[sident]["MAR"])
-                cadena.append(str(data[sident]["MAR"]))
-                column+=1
-            if Detailed_results_KSRM: 
-                sheetDetailed.write(row, column, data[sident]["KSRM"])
-                cadena.append(str(data[sident]["KSRM"]))
-                column+=1
-            if Detailed_results_INSERTIONS: 
-                sheetDetailed.write(row, column, data[sident]["INSERTIONS"])
-                cadena.append(str(data[sident]["INSERTIONS"]))
-                column+=1
-            if Detailed_results_DELETIONS: 
-                sheetDetailed.write(row, column, data[sident]["DELETIONS"])
-                cadena.append(str(data[sident]["DELETIONS"]))
-                column+=1
-            if Detailed_results_SUBSTITUTIONS: 
-                sheetDetailed.write(row, column, data[sident]["SUBSTITUTIONS"])
-                cadena.append(str(data[sident]["SUBSTITUTIONS"]))
-                column+=1
-            if Detailed_results_REORDERING: 
-                sheetDetailed.write(row, column, data[sident]["REORDERING"])
-                cadena.append(str(data[sident]["REORDERING"]))
-                column+=1
-            if Detailed_results_BLEU: 
-                sheetDetailed.write(row, column, data[sident]["BLEU"])
-                cadena.append(str(data[sident]["BLEU"]))
-                column+=1
-            if Detailed_results_NIST: 
-                sheetDetailed.write(row, column, data[sident]["NIST"])
-                cadena.append(str(data[sident]["NIST"]))
-                column+=1
-            if Detailed_results_WER: 
-                sheetDetailed.write(row, column, data[sident]["WER"])
-                cadena.append(str(data[sident]["WER"]))
-                column+=1
-            if Detailed_results_TER: 
-                sheetDetailed.write(row, column, data[sident]["TER"])
-                cadena.append(str(data[sident]["TER"]))
-                column+=1
-            if Detailed_results_Ed: 
-                sheetDetailed.write(row, column, data[sident]["EditDistance"])
-                cadena.append(str(data[sident]["EditDistance"]))
-                column+=1
-            sheetDetailed.write(row, column, round(data[sident]["TIME"],round_time))
-            cadena.append(str(round(data[sident]["TIME"],round_time)))
-            column+=1
-            sheetDetailed.write(row, column, round(data[sident]["TIME_NORM"],round_time))
-            cadena.append(str(round(data[sident]["TIME_NORM"],round_time)))
-            column+=1
-            sheetDetailed.write(row, column, data[sident]["KEYSTROKES"])
-            cadena.append(str(data[sident]["KEYSTROKES"]))
-            column+=1
-            sheetDetailed.write(row, column, round(data[sident]["KEYSTROKES_NORM"],round_keys))
-            cadena.append(str(round(data[sident]["KEYSTROKES_NORM"],round_keys)))
-            column+=1
-            sheetDetailed.write(row, column, data[sident]["MOUSEACTIONS"])
-            cadena.append(str(data[sident]["MOUSEACTIONS"]))
-            column+=1
-            sheetDetailed.write(row, column, round(data[sident]["MOUSEACTIONS_NORM"],round_mouse))
-            cadena.append(str(round(data[sident]["MOUSEACTIONS_NORM"],round_mouse)))
-            column+=1
-            sheetDetailed.write(row, column, str(data[sident]["PRUNED"]))
-            
-            cadena.append(str(data[sident]["PRUNED"]))
-            column+=1
-            row+=1
-            cadena="\t".join(cadena)
-            sortida.write(cadena+"\n")
-        except:
-            print("ERROR",sys.exc_info())
-            pass
-        
-    workbook.close()
-    '''
-###    
+ 
     
 def copy_results():
     main_window.clipboard_append(results_frame_text.get("1.0",END))
@@ -1410,7 +1568,19 @@ if __name__ == "__main__":
     
    
     normalization=config['Measures']['normalization']
-    
+    SHOW_INSERTIONS=config['Measures']['INSERTIONS']
+    SHOW_DELETIONS=config['Measures']['DELETIONS']
+    SHOW_SUBSTITUTIONS=config['Measures']['SUBSTITUTIONS']
+    SHOW_REORDERING=config['Measures']['REORDERING']
+    SHOW_KSR=config['Measures']['KSR']
+    SHOW_MAR=config['Measures']['MAR']
+    SHOW_KSRM=config['Measures']['KSRM']
+    SHOW_HBLEU=config['Measures']['HBLEU']
+    SHOW_HNIST=config['Measures']['HNIST']
+    SHOW_HTER=config['Measures']['HTER']
+    SHOW_HTER_details=config['Measures']['HTER_details']
+    SHOW_HWER=config['Measures']['HWER']
+    SHOW_HEd=config['Measures']['HEd']
     round_time=int(config['Measures']['round_time'])
     round_keys=int(config['Measures']['round_keys'])
     round_mouse=int(config['Measures']['round_mouse'])
@@ -1423,7 +1593,11 @@ if __name__ == "__main__":
     round_KSR=int(config['Measures']['round_KSR'])
     round_MAR=int(config['Measures']['round_MAR'])
     round_KSRM=int(config['Measures']['round_KSRM'])
+    SHOW_LONG_PAUSES=int(config['Measures']['LONG_PAUSES'])
+    min_pause_msec=int(config['Measures']['min_pause_msec'])/1000
+    sum_additional_pause=int(config['Measures']['sum_additional_pause'])
     
+    Detailed_results_LONG_PAUSES=config['Detailed_results']['LONG_PAUSES']
     Detailed_results_KSR=config['Detailed_results']['KSR']
     Detailed_results_MAR=config['Detailed_results']['MAR']
     Detailed_results_KSRM=config['Detailed_results']['KSRM']
@@ -1436,6 +1610,15 @@ if __name__ == "__main__":
     Detailed_results_DELETIONS=config['Detailed_results']['DELETIONS']
     Detailed_results_SUBSTITUTIONS=config['Detailed_results']['SUBSTITUTIONS']
     Detailed_results_REORDERING=config['Detailed_results']['REORDERING']
+    
+    Detailed_results_Ins=config['Detailed_results']['Ins']
+    Detailed_results_Del=config['Detailed_results']['Del']
+    Detailed_results_Sub=config['Detailed_results']['Sub']
+    Detailed_results_Shft=config['Detailed_results']['Shft']
+    Detailed_results_WdSh=config['Detailed_results']['WdSh']
+    Detailed_results_NumErr=config['Detailed_results']['NumErr']
+    Detailed_results_NumWd=config['Detailed_results']['NumWd']
+    
     
     Detailed_sort_measure=config['Detailed_results']['sort_measure']
     Detailed_sort_order=config['Detailed_results']['sort_order']
@@ -1456,6 +1639,14 @@ if __name__ == "__main__":
         Detailed_results_INSERTIONS=False
         Detailed_results_DELETIONS=False
         Detailed_results_SUBSTITUTIONS=False
+        Detailed_results_LONG_PAUSES=False
+        Detailed_results_Ins=False
+        Detailed_results_Del=False
+        Detailed_results_Sub=False
+        Detailed_results_Shft=False
+        Detailed_results_WdSh=False
+        Detailed_results_NumErr=False
+        Detailed_results_NmWd=False
         Detailed_results_REORDERING=False
     
     resultsfile=config['Files']['results']
