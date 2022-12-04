@@ -13,8 +13,21 @@ Measures:
    bysegment: True
    normalization: token
    #one of segment, token, char
-   HTER: True
+   LONG_PAUSES: True
+   min_pause_msec: 300
+   sum_additional_pause: 1
+   INSERTIONS: True
+   DELETIONS: True
+   SUBSTITUTIONS: True
+   REORDERING: True
+   KSR: True
+   MAR: True
+   KSRM: True
    HBLEU: True
+   HNIST: True
+   HTER: True
+   HTER_details: True
+   HWER: True
    HEd: True
    round_time: 2
    round_keys: 2
@@ -27,9 +40,11 @@ Measures:
    round_KSR: 4
    round_MAR: 4
    round_KSRM: 4
-   round_other: 2
+   round_other: 4
+   
     
 Detailed_results:
+    LONG_PAUSES: True
     KSR: True
     MAR: True
     KSRM: True
@@ -42,6 +57,16 @@ Detailed_results:
     DELETIONS: True
     SUBSTITUTIONS: True
     REORDERING: True
+    #COMPLEMENTARY MEASURES FROM TERCOM:
+    Ins: True
+    Del: True
+    Sub: True
+    Shft: True
+    WdSh: True
+    NumErr: True
+    NumWd: True
+    
+    
     sort_measure: Apparition
     #one of Apparition, BLEU, NIST, WER, TER, EditDistance
     sort_order: ascending
