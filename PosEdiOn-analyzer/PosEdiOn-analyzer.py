@@ -302,7 +302,7 @@ def go():
     cur.execute('SELECT segment_id, slsegment, rawMT, postEd, status FROM segments')
     results=cur.fetchall()
     for result in results:
-        ident=completeid(result[0])
+        ident=int(completeid(result[0]))
         source=result[1]
         rawMT=result[2]
         postEd=result[3]
@@ -349,7 +349,7 @@ def go():
         cont+=1
         action_id=result[0]
         tipus=result[1]
-        ident=completeid(result[2])
+        ident=int(completeid(result[2]))
         date_string=result[3]
         key_pressed=result[4]
         position=result[5]
@@ -379,6 +379,7 @@ def go():
                 #elif normalization=="token":  data[ident]["TIME_NORM"]+=seconds/tokens
                 #elif normalization=="segment":  data[ident]["TIME_NORM"]+=seconds
         elif tipus=="K": 
+            data[ident]["KEYSTROKES"]+=1
             now_time=datetime.datetime.strptime(date_string,'%Y-%m-%d %H:%M:%S.%f')
             pause=(now_time-prev_time).total_seconds()
             prev_time=now_time
@@ -402,6 +403,7 @@ def go():
             if key_pressed in ["Key.46.Delete","Key.8.Backspace"]:
                 data[ident]["DELETIONS"]+=1
         elif tipus=="M": 
+            data[ident]["MOUSEACTIONS"]+=1
             now_time=datetime.datetime.strptime(date_string,'%Y-%m-%d %H:%M:%S.%f')
             pause=(now_time-prev_time).total_seconds()
             prev_time=now_time
@@ -440,7 +442,7 @@ def calculate_all(data):
     global timepruneupperlimit
     global meantime
     global stdevtime
-    
+     
     cont=0
     equals=0
     toktotal=0
@@ -559,7 +561,7 @@ def calculate_all(data):
         
         if Detailed_results_KSR:
             try:
-                data[i]["KSR"]=round(data[i]["KEYSTROKES"]/len(rawMT),round_KSR)
+                data[i]["KSR"]=round((data[i]["KEYSTROKES"]/len(rawMT)),round_KSR)
             except:
                 print("ERROR KSR ",sys.exc_info())
                 data[i]["KSR"]=None
@@ -641,7 +643,7 @@ def calculate_all(data):
     nmouseactionstotal=round(nmouseactionstotal,round_mouse)
     if SHOW_KSR:
         try:
-            KSR=round(keystrokestotal/chartotal,round_KSR)
+            KSR=round((keystrokestotal/chartotal),round_KSR)
         except:
             print("ERROR KSR ",sys.exc_info())
             KSR=None
@@ -1444,7 +1446,6 @@ def calculate_all(data):
     if Create_tabbedtext: sortida.write(cadena+"\n")
     row=1
     for sident in sortident:
-        
         try:
             cadena=[]
             if data[sident]["PRUNED"]:
@@ -1468,15 +1469,20 @@ def calculate_all(data):
                 cadena.append(str(data[sident]["LONG_PAUSES"]))
                 column+=1
             if Detailed_results_KSR: 
-                sheetDetailed.write(row, column, data[sident]["KSR"])
-                cadena.append(str(data[sident]["KSR"]))
+                KSR_det=round(data[sident]["KEYSTROKES"]/len(data[sident]["rawMT"]),round_KSR)
+                sheetDetailed.write(row, column, KSR_det)
+                cadena.append(str(KSR_det))
                 column+=1
-            if Detailed_results_KSR: 
-                sheetDetailed.write(row, column, data[sident]["MAR"])
-                cadena.append(str(data[sident]["MAR"]))
+            if Detailed_results_MAR: 
+                MAR_det=round(data[sident]["MOUSEACTIONS"]/len(data[sident]["rawMT"]),round_KSR)
+                sheetDetailed.write(row, column, MAR_det)
+                cadena.append(str(MAR_det))
                 column+=1
             if Detailed_results_KSRM: 
-                sheetDetailed.write(row, column, data[sident]["KSRM"])
+                KSR_det=round(data[sident]["KEYSTROKES"]/len(data[sident]["rawMT"]),round_KSR)
+                MAR_det=round(data[sident]["MOUSEACTIONS"]/len(data[sident]["rawMT"]),round_KSR)
+                KSRM_det=KSR_det+MAR_det
+                sheetDetailed.write(row, column, KSRM_det)
                 cadena.append(str(data[sident]["KSRM"]))
                 column+=1
             if Detailed_results_INSERTIONS: 
