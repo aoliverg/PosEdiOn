@@ -484,6 +484,8 @@ def calculate_all(data):
     references_tok_pruned=[]
     hypothesis_pruned=[]
     hypothesis_tok_pruned=[]
+    total_long_pauses=0
+    total_long_pauses_pruned=0
     for i in ident:
         cont+=1
         source=data[i]["source"]
@@ -497,7 +499,7 @@ def calculate_all(data):
         hypothesis_tok.append(rawMT_tok)
         references.append([postED])
         references_tok.append([postED_tok])
-        
+        total_long_pauses+=data[i]["LONG_PAUSES"]
         if data[i]["TIME_NORM"]>=timeprunelowerlimit and data[i]["TIME_NORM"]<=timepruneupperlimit:
             data[i]["PRUNED"]=False
             hypothesis_pruned.append(rawMT)
@@ -512,6 +514,7 @@ def calculate_all(data):
             deletionstotal_pruned+=data[i]["DELETIONS"]
             substitutionstotal_pruned+=data[i]["SUBSTITUTIONS"]
             reorderingtotal_pruned+=data[i]["REORDERING"]
+            total_long_pauses_pruned+=data[i]["LONG_PAUSES"]
         else:
             data[i]["PRUNED"]=True
     
@@ -523,6 +526,8 @@ def calculate_all(data):
         deletionstotal+=data[i]["DELETIONS"]
         substitutionstotal+=data[i]["SUBSTITUTIONS"]
         reorderingtotal+=data[i]["REORDERING"]
+        
+        
          
         if rawMT==postED: 
             equals+=1
@@ -793,6 +798,11 @@ def calculate_all(data):
     cadena="TOTAL MOUSE ACTIONS: "+str(mouseactionstotal)+" NORM MOUSE ACTIONS: "+str(nmouseactionstotal)+" "+normalizationstring+"\n"
     results_frame_text.insert(INSERT, cadena)
     
+    if SHOW_LONG_PAUSES:
+        ntotal_long_pauses=safediv(total_long_pauses,normfactor)
+        cadena="TOTAL LONG PAUSES: "+str(total_long_pauses)+" NORM LONG PAUSES: "+str(round(ntotal_long_pauses,round_other))+" "+normalizationstring+"\n"
+        results_frame_text.insert(INSERT, cadena)
+    
     if SHOW_INSERTIONS:
         cadena="TOTAL INSERTIONS: "+str(insertionstotal)+" NORM INSERTIONS: "+str(round(safediv(insertionstotal,normfactor),round_other))+" "+normalizationstring+"\n"
         results_frame_text.insert(INSERT, cadena)
@@ -862,6 +872,12 @@ def calculate_all(data):
         
         cadena="st. dev. time: "+str(round(stdevtime,round_time))+" "+normalizationstring+"\n"
         results_frame_text.insert(INSERT, cadena)
+        
+        if SHOW_LONG_PAUSES:
+            ntotal_long_pauses_pruned=safediv(total_long_pauses_pruned,normfactor)
+            cadena="TOTAL LONG PAUSES PRUNED: "+str(total_long_pauses_pruned)+" NORM LONG PAUSES: "+str(round(ntotal_long_pauses_pruned,round_other))+" "+normalizationstring+"\n"
+            results_frame_text.insert(INSERT, cadena)
+            
         if SHOW_INSERTIONS:
             cadena="TOTAL INSERTIONS: "+str(insertionstotal_pruned)+" NORM INSERTIONS: "+str(round(safediv(insertionstotal_pruned,normfactor),round_other))+" "+normalizationstring+"\n"
             results_frame_text.insert(INSERT, cadena)
@@ -995,6 +1011,17 @@ def calculate_all(data):
         sheetAll.write(filera,1,nmouseactionstotal)
         sheetAll.write(filera,2,normalizationstring)
         filera+=1
+        
+        if SHOW_LONG_PAUSES:
+            sheetAll.write(filera,0,"TOTAL LONG PAUSES")
+            sheetAll.write(filera,1,total_long_pauses)
+            filera+=1
+            
+            sheetAll.write(filera,0,"NORM. TOTAL LONG PAUSES")
+            sheetAll.write(filera,1,round(ntotal_long_pauses,round_other))
+            sheetAll.write(filera,2,normalizationstring)
+            filera+=1
+        
         if SHOW_INSERTIONS:
             sheetAll.write(filera,0,"INSERTIONS")
             sheetAll.write(filera,1,insertionstotal)
@@ -1141,6 +1168,17 @@ def calculate_all(data):
             sheetAll.write(filera,1,round(stdevtime,round_time))
             sheetAll.write(filera,2,normalizationstring)
             filera+=1
+            
+            if SHOW_LONG_PAUSES:
+                sheetAll.write(filera,0,"TOTAL LONG PAUSES")
+                sheetAll.write(filera,1,total_long_pauses_pruned)
+                filera+=1
+                
+                sheetAll.write(filera,0,"NORM. TOTAL LONG PAUSES")
+                sheetAll.write(filera,1,round(ntotal_long_pauses_pruned,round_other))
+                sheetAll.write(filera,2,normalizationstring)
+                filera+=1
+            
             if SHOW_INSERTIONS:
                 sheetAll.write(filera,0,"INSERTIONS")
                 sheetAll.write(filera,1,insertionstotal_pruned)
