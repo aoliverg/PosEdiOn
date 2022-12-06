@@ -18,6 +18,6 @@ sudo pip3 install -r requirements.txt
 
 (copy an paste the links below)
 
-PosEdiOn: [http://lpg.uoc.edu/PosEdiOn/PosEdiOn.exe](http://lpg.uoc.edu/PosEdiOn/PosEdiOn.exe)
+PosEdiOn: [http://lpg.uoc.edu/PosEdiOn/PosEdiOn.zip](http://lpg.uoc.edu/PosEdiOn/PosEdiOn.zip)
 
-PosEdiOn-analyzer: [http://lpg.uoc.edu/PosEdiOn/PosEdiOn-analyzer.exe](http://lpg.uoc.edu/PosEdiOn/PosEdiOn-analyzer.exe)
+PosEdiOn-analyzer: [http://lpg.uoc.edu/PosEdiOn/PosEdiOn-analyzer.zip](http://lpg.uoc.edu/PosEdiOn/PosEdiOn-analyzer.zip)
