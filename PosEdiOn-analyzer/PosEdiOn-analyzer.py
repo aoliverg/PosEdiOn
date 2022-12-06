@@ -383,8 +383,7 @@ def go():
             pause=(now_time-prev_time).total_seconds()
             prev_time=now_time
             if pause>=min_pause_msec:
-                data[ident]["KEYSTROKES"]+=1
-                data[ident]["KEYSTROKES_NORM"]+=1/normfactor
+                data[ident]["LONG_PAUSES"]+=1
             #if normalization=="char": data[ident]["KEYSTROKES_NORM"]+=1/chars
             #elif normalization=="token":  data[ident]["KEYSTROKES_NORM"]+=1/tokens
             #elif normalization=="segment":  data[ident]["KEYSTROKES_NORM"]+=1
@@ -407,18 +406,13 @@ def go():
             pause=(now_time-prev_time).total_seconds()
             prev_time=now_time
             if pause>=min_pause_msec:
-                data[ident]["MOUSEACTIONS"]+=1
-                data[ident]["MOUSEACTIONS_NORM"]+=1/normfactor
-            #if normalization=="char": data[ident]["MOUSEACTIONS_NORM"]+=1/chars
-            #elif normalization=="token":  data[ident]["MOUSEACTIONS_NORM"]+=1/tokens
-            #elif normalization=="segment":  data[ident]["MOUSEACTIONS_NORM"]+=1
+                data[ident]["LONG_PAUSES"]+=1
         elif tipus=="C":
             now_time=datetime.datetime.strptime(date_string,'%Y-%m-%d %H:%M:%S.%f')
             pause=(now_time-prev_time).total_seconds()
             prev_time=now_time
             if pause>=min_pause_msec:
-                data[ident]["MOUSEACTIONS"]+=1
-                data[ident]["MOUSEACTIONS_NORM"]+=1/normfactor
+                data[ident]["LONG_PAUSES"]+=1
             if key_pressed.startswith("Command.CtrlX"):
                 controlX=True
             if key_pressed.startswith("Command.CtrlV") and controlX:
@@ -1632,7 +1626,7 @@ if __name__ == "__main__":
     round_MAR=int(config['Measures']['round_MAR'])
     round_KSRM=int(config['Measures']['round_KSRM'])
     SHOW_LONG_PAUSES=int(config['Measures']['LONG_PAUSES'])
-    min_pause_msec=int(config['Measures']['min_pause_msec'])/1000
+    min_pause_msec=float(config['Measures']['min_pause_msec'])/1000
     sum_additional_pause=int(config['Measures']['sum_additional_pause'])
     
     Detailed_results_LONG_PAUSES=config['Detailed_results']['LONG_PAUSES']
